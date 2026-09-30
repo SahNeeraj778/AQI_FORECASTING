@@ -1,15 +1,284 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#03B1FC" />
-    <title>Aeroflow | Delhi NCR AQI Early Warning</title>
-    <link rel="preconnect" href="https://esm.sh" />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="./app.js"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Know the Air, Plan Ahead | Delhi NCR AQI Dashboard</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Unified Light Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-50 text-slate-800 flex flex-col min-h-screen">
+
+  <!-- Fallback Notification Banner (Hidden by default, shown if API rate-limited / error caught) -->
+  <div id="fallback-banner" class="hidden fallback-notice-banner">
+    <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+    <span id="fallback-banner-text">Live API rate-limited or credits exhausted. Displaying resilient cached baseline data for 24 stations.</span>
+  </div>
+
+  <!-- Navigation Bar (Unified Light Theme) -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 text-xl font-bold">
+            <i class="fa-solid fa-leaf"></i>
+          </div>
+          <div>
+            <span class="font-bold text-lg text-slate-900 tracking-tight block">Know the Air, Plan Ahead</span>
+            <span class="text-xs text-slate-500 block">Delhi NCR Air Quality Early Warning System</span>
+          </div>
+        </div>
+        
+        <div class="hidden md:flex items-center space-x-8">
+          <a href="index.html" class="nav-link text-sm font-semibold text-blue-600 border-b-2 border-blue-600 py-5">Dashboard</a>
+          <a href="pollutants.html" class="nav-link text-sm font-medium text-slate-600 hover:text-blue-600 py-5">Pollutants</a>
+          <a href="weather.html" class="nav-link text-sm font-medium text-slate-600 hover:text-blue-600 py-5">Weather & Atmosphere</a>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <span class="text-xs bg-emerald-50 text-emerald-700 font-semibold px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            24 Stations Active
+          </span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Dashboard Content -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+    <!-- Page Header & Searchable 24-Location Dropdown Selector -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div>
+        <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight mb-1">Delhi NCR AQI Dashboard</h1>
+        <p class="text-slate-500 text-sm">Real-time air quality index, WRF-Chem 72-hour forecast, and coupled atmospheric dynamics.</p>
+      </div>
+
+      <!-- Searchable Dropdown Location Selector (24 Stations) -->
+      <div id="station-selector-container">
+        <!-- Injected via location-dropdown.js -->
+      </div>
+    </div>
+
+    <!-- Hero 3 Primary Cards (Light Themed) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      
+      <!-- CARD 1: CURRENT AQI -->
+      <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="flex justify-between items-center mb-4">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> CURRENT AQI
+          </span>
+          <span id="card-dominant-pollutant" class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md font-semibold">Dominant: PM2.5</span>
+        </div>
+
+        <div class="mb-4">
+          <div class="flex items-baseline gap-3">
+            <span id="card-current-aqi-val" class="text-6xl font-black text-slate-900 font-mono tracking-tight">--</span>
+            <span id="card-aqi-category" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800">--</span>
+          </div>
+          <p id="card-aqi-location" class="text-xs text-slate-500 mt-1">at Delhi NCR Average</p>
+        </div>
+
+        <!-- AQI Gradient Spectrum Bar -->
+        <div class="gradient-bar-container">
+          <div class="gradient-bar"></div>
+          <i id="aqi-spectrum-pointer" class="fa-solid fa-caret-down gradient-pointer" style="left: 20%;"></i>
+        </div>
+      </div>
+
+      <!-- CARD 2: MODEL FORECAST -->
+      <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="flex justify-between items-center mb-4">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+            <i class="fa-solid fa-wand-magic-sparkles text-blue-500"></i> MODEL FORECAST
+          </span>
+          <span id="selected-horizon-badge" class="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-md font-semibold">+6h Outlook</span>
+        </div>
+
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-baseline gap-2">
+            <span id="card-forecast-aqi-val" class="text-5xl font-black text-slate-900 font-mono">--</span>
+            <span class="text-xs text-slate-500 leading-tight">AQI predicted <br><span id="forecast-horizon-text">in 6 hours</span></span>
+          </div>
+          <div id="card-forecast-delta" class="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
+            <i class="fa-solid fa-arrow-trend-up"></i> <span>--</span>
+          </div>
+        </div>
+
+        <!-- Horizon Selector Pills -->
+        <div class="horizon-pills mb-3">
+          <button class="horizon-btn" data-horizon="1">+1h</button>
+          <button class="horizon-btn active" data-horizon="6">+6h</button>
+          <button class="horizon-btn" data-horizon="12">+12h</button>
+          <button class="horizon-btn" data-horizon="24">+24h</button>
+          <button class="horizon-btn" data-horizon="72">+72h</button>
+        </div>
+
+        <div id="card-forecast-alert-line" class="text-xs text-emerald-600 flex items-center gap-1.5 pt-3 border-t border-slate-100">
+          <i class="fa-solid fa-circle-check"></i> <span id="card-forecast-alert-text">Within the AQI alert threshold (100)</span>
+        </div>
+      </div>
+
+      <!-- CARD 3: WEATHER NOW -->
+      <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="flex justify-between items-center mb-4">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+            <i class="fa-solid fa-cloud-sun text-amber-500"></i> METEOROLOGY NOW
+          </span>
+          <span id="card-weather-condition" class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">Partly Cloudy</span>
+        </div>
+
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-baseline">
+            <span id="card-temp-val" class="text-5xl font-black text-slate-900 font-mono">--</span>
+            <span class="text-xl font-semibold text-slate-400 ml-1">°C</span>
+          </div>
+          <div id="card-weather-icon" class="text-4xl text-amber-400">
+            <i class="fa-solid fa-sun"></i>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+          <div>
+            <span class="text-[11px] text-slate-400 block"><i class="fa-solid fa-droplet text-blue-400"></i> Humidity</span>
+            <span id="card-humidity-val" class="text-sm font-bold text-slate-800 font-mono">--</span>
+          </div>
+          <div>
+            <span class="text-[11px] text-slate-400 block"><i class="fa-solid fa-wind text-teal-500"></i> Wind Speed</span>
+            <span id="card-wind-val" class="text-sm font-bold text-slate-800 font-mono">--</span>
+          </div>
+          <div>
+            <span class="text-[11px] text-slate-400 block"><i class="fa-solid fa-gauge-high text-indigo-400"></i> Pressure</span>
+            <span id="card-pressure-val" class="text-sm font-bold text-slate-800 font-mono">--</span>
+          </div>
+          <div>
+            <span class="text-[11px] text-slate-400 block"><i class="fa-solid fa-fan text-emerald-500"></i> Ventilation</span>
+            <span id="card-ventilation-val" class="text-sm font-bold text-slate-800 font-mono">--</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 72-Hour Map & Spatial Forecast Grid (Clean Light Leaflet Map) -->
+    <div class="card p-6 mb-8">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-map-location-dot text-blue-600"></i> 72-Hour Spatial AQI Map (24 Delhi NCR Stations)
+          </h3>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+          <button class="layer-btn active px-3 py-1.5 rounded-lg border text-xs font-semibold" data-layer="aqi">
+            <i class="fa-solid fa-layer-group"></i> AQI Pins
+          </button>
+          <button class="layer-btn px-3 py-1.5 rounded-lg border text-xs font-semibold" data-layer="fires">
+            <i class="fa-solid fa-fire text-red-500"></i> Stubble Fires
+          </button>
+          <button class="layer-btn px-3 py-1.5 rounded-lg border text-xs font-semibold" data-layer="inversion">
+            <i class="fa-solid fa-smog text-purple-500"></i> Inversion Risk
+          </button>
+        </div>
+      </div>
+
+      <div class="rounded-xl overflow-hidden border border-slate-200 relative">
+        <div id="delhi-aqi-map" class="h-96 w-full bg-slate-100"></div>
+        
+        <!-- Timeline Slider Bar -->
+        <div class="bg-white/95 backdrop-blur border-t border-slate-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+          <span class="text-xs font-bold text-slate-500 font-mono">Forecast Horizon:</span>
+          <div class="flex gap-2">
+            <button class="time-tick active px-3 py-1 rounded-md text-xs font-bold border" data-time="0">NOW</button>
+            <button class="time-tick px-3 py-1 rounded-md text-xs font-bold border" data-time="6">6h</button>
+            <button class="time-tick px-3 py-1 rounded-md text-xs font-bold border" data-time="12">12h</button>
+            <button class="time-tick px-3 py-1 rounded-md text-xs font-bold border" data-time="24">24h</button>
+            <button class="time-tick px-3 py-1 rounded-md text-xs font-bold border" data-time="72">72h</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 72h Trend Chart & Warnings List -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      
+      <!-- 72h Forecast Chart -->
+      <div class="card p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-chart-line text-blue-600"></i> 72-Hour AQI Trend Curve
+          </h3>
+          <span id="forecast-chart-station" class="text-xs font-medium text-slate-500">Station: Delhi NCR Average</span>
+        </div>
+        <div class="h-72 w-full">
+          <canvas id="aqi-forecast-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Early Warnings & Dispersion Panel -->
+      <div class="card p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-amber-500"></i> Early Warnings & Dispersion Risk
+          </h3>
+        </div>
+
+        <div class="space-y-3 mb-4">
+          <div class="bg-red-50 border-l-4 border-red-500 p-3.5 rounded-r-xl flex gap-3">
+            <i class="fa-solid fa-temperature-arrow-down text-red-500 text-lg mt-0.5"></i>
+            <div>
+              <h4 class="text-sm font-bold text-slate-900">Thermal Inversion Alert</h4>
+              <p class="text-xs text-slate-600 mt-0.5">Cool ground layer + nocturnal PBL collapse expected to trap particulate matter under 300m height during 02:00–08:00 AM.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border-l-4 border-amber-500 p-3.5 rounded-r-xl flex gap-3">
+            <i class="fa-solid fa-fire text-amber-500 text-lg mt-0.5"></i>
+            <div>
+              <h4 class="text-sm font-bold text-slate-900">NW Stubble Burning Plume Drift</h4>
+              <p class="text-xs text-slate-600 mt-0.5">Northwesterly wind streams carrying biomass combustion plumes from Punjab/Haryana agricultural clusters toward NCR.</p>
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border-l-4 border-blue-500 p-3.5 rounded-r-xl flex gap-3">
+            <i class="fa-solid fa-smog text-blue-500 text-lg mt-0.5"></i>
+            <div>
+              <h4 class="text-sm font-bold text-slate-900">Poor Ventilation Index</h4>
+              <p class="text-xs text-slate-600 mt-0.5">Stagnant atmospheric conditions (Ventilation Index &lt; 4.0 m²/s) slowing horizontal pollutant clearance.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 mt-auto py-6">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+      <p class="font-semibold text-slate-700">Know the Air, Plan Ahead — Delhi NCR AQI Early Warning System</p>
+      <p class="mt-1">Anchor Date: 2 Sept 2026 23:00 • 24 Active Monitoring Stations</p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="data-handler.js"></script>
+  <script src="location-dropdown.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
 </html>

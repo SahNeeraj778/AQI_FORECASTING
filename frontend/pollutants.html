@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pollutant Intelligence - Know the Air, Plan Ahead</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Unified Light Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-50 text-slate-800 flex flex-col min-h-screen">
+
+  <!-- Fallback Notification Banner -->
+  <div id="fallback-banner" class="hidden fallback-notice-banner">
+    <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+    <span id="fallback-banner-text">Live API rate-limited or credits exhausted. Displaying resilient cached baseline data for 24 stations.</span>
+  </div>
+
+  <!-- Navigation Bar (Unified Light Theme) -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 text-xl font-bold">
+            <i class="fa-solid fa-leaf"></i>
+          </div>
+          <div>
+            <span class="font-bold text-lg text-slate-900 tracking-tight block">Know the Air, Plan Ahead</span>
+            <span class="text-xs text-slate-500 block">Delhi NCR Air Quality Early Warning System</span>
+          </div>
+        </div>
+        
+        <div class="hidden md:flex items-center space-x-8">
+          <a href="index.html" class="nav-link text-sm font-medium text-slate-600 hover:text-blue-600 py-5">Dashboard</a>
+          <a href="pollutants.html" class="nav-link text-sm font-semibold text-blue-600 border-b-2 border-blue-600 py-5">Pollutants</a>
+          <a href="weather.html" class="nav-link text-sm font-medium text-slate-600 hover:text-blue-600 py-5">Weather & Atmosphere</a>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <span class="text-xs bg-emerald-50 text-emerald-700 font-semibold px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            24 Stations Active
+          </span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+    
+    <!-- Page Header & Searchable 24-Location Dropdown Selector -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div>
+        <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight mb-1">Pollutant Intelligence</h1>
+        <p class="text-slate-500 text-sm">Deep-dive analysis into individual air pollutants, physical sources, WHO guideline comparisons, and respiratory impact.</p>
+      </div>
+
+      <!-- Searchable Dropdown Location Selector (Replaced 24 horizontal tabs for clean UI) -->
+      <div id="station-selector-container">
+        <!-- Injected via location-dropdown.js -->
+      </div>
+    </div>
+
+    <!-- Pollutant Selector Bar -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-4 mb-8 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-2">
+        <i class="fa-solid fa-sliders text-blue-600"></i> SELECT POLLUTANT:
+      </div>
+      <div class="flex flex-wrap gap-2" id="pollutant-selector">
+        <!-- Dynamically injected by pollutants-app.js -->
+      </div>
+    </div>
+
+    <!-- POLLUTANT DETAIL CARD (Light Theme Matching Page 4) -->
+    <div id="detail-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+      
+      <!-- Card Header -->
+      <div id="card-header" class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <div class="flex items-center gap-3">
+          <h2 id="pol-name" class="text-2xl font-bold text-slate-800">PM2.5</h2>
+          <span id="pol-formula" class="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-md text-xs font-mono font-bold">PM₂.₅</span>
+          <span id="pol-fullname" class="text-slate-500 text-xs hidden sm:inline-block">Fine Particulate Matter</span>
+        </div>
+        <div id="pol-severity-badge" class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 bg-yellow-100 text-yellow-800">
+          <span class="w-2 h-2 rounded-full bg-current"></span>
+          <span id="pol-severity-text">Moderate</span>
+        </div>
+      </div>
+
+      <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Column 1: Current Concentration & WHO Guideline Ratio Card -->
+        <div class="space-y-6">
+          <div>
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Current Concentration</h3>
+            <div class="flex items-baseline gap-2 mb-2">
+              <span id="pol-current-val" class="text-5xl font-black tracking-tight text-slate-900 font-mono">--</span>
+              <span id="pol-unit" class="text-base font-semibold text-slate-500">µg/m³</span>
+            </div>
+            
+            <!-- Limit Bar with WHO & NAAQS Markers -->
+            <div class="mt-4 relative pt-6 pb-2">
+              <div class="h-3 w-full bg-slate-100 rounded-full overflow-hidden gradient-bar opacity-40 absolute top-6"></div>
+              <div class="h-3 w-full rounded-full overflow-hidden absolute top-6 flex">
+                <div id="pol-bar-fill" class="h-full bg-slate-800 shadow-md rounded-r-full" style="width: 0%"></div>
+              </div>
+              <div id="marker-who" class="absolute top-0 w-px h-12 bg-blue-500 z-10 flex flex-col items-center" style="left: 20%">
+                <span class="text-[10px] font-bold text-blue-600 bg-white px-1 rounded shadow-xs whitespace-nowrap mb-1">WHO Limit</span>
+              </div>
+              <div id="marker-naaqs" class="absolute top-0 w-px h-12 bg-purple-500 z-10 flex flex-col items-center" style="left: 60%">
+                <span class="text-[10px] font-bold text-purple-600 bg-white px-1 rounded shadow-xs whitespace-nowrap mb-1">India NAAQS</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- WHO Ratio Card (Matching Reference Image 2) -->
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex gap-4 items-center">
+            <div id="who-ratio-badge" class="bg-red-500 text-white p-3 rounded-xl text-center min-w-[95px] flex-shrink-0">
+              <span class="text-base font-extrabold font-mono block leading-tight">3.7x</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider block opacity-90">Above</span>
+            </div>
+            <div>
+              <h4 id="who-headline-text" class="text-sm font-bold text-slate-900 leading-snug">3.7x Above WHO Guideline</h4>
+              <p id="who-detail-text" class="text-xs text-slate-600 mt-1 leading-relaxed">The current level is 3.7x above the recommended WHO guideline of 15 µg/m³.</p>
+            </div>
+          </div>
+
+          <!-- What is it & Particle Size -->
+          <div>
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">What is it?</h3>
+            <div class="bg-blue-50 text-blue-900 p-3.5 rounded-xl text-xs font-medium leading-relaxed mb-3 flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-info text-blue-500 mt-0.5"></i>
+              <span id="pol-description">Microscopic particles ≤2.5 micrometers in diameter capable of penetrating deep into lungs.</span>
+            </div>
+            <div id="pol-facts-grid" class="grid grid-cols-1 gap-2 text-xs">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 2: Environmental Sources & 7-Day Trend Chart -->
+        <div class="space-y-6">
+          <div>
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Primary Emission Sources in Delhi</h3>
+            <div class="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex mb-4" id="sources-stacked-bar">
+              <!-- Injected via JS -->
+            </div>
+            <div id="sources-legend" class="grid grid-cols-2 gap-2.5 text-xs">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">7-Day Trend & Forecast</h3>
+            <div class="h-56 relative w-full">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 3: Health & Disease Mortality Impact (Matching Reference Image 3) -->
+        <div class="space-y-6">
+          <div>
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Health Impact & Disease Share</h3>
+              <span class="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md"><i class="fa-solid fa-skull"></i> 70 Deaths / 100k</span>
+            </div>
+
+            <!-- Disease Bar Charts -->
+            <div id="health-disease-bars" class="space-y-3">
+              <!-- Injected via JS (COPD 30%, Lower Respiratory 24%, Stroke 23%, Heart Disease 16%, Lung Cancer 7%) -->
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Ecosystem & Environmental Impact</h3>
+            <div id="env-effects-grid" class="space-y-2">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Pollutant Overview Grid -->
+    <div class="mb-8">
+      <h3 class="text-lg font-bold text-slate-900 mb-4">All Pollutants Current Overview</h3>
+      <div id="comparison-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 mt-auto py-6">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+      <p class="font-semibold text-slate-700">Know the Air, Plan Ahead — Delhi NCR AQI Early Warning System</p>
+      <p class="mt-1">Anchor Date: 2 Sept 2026 23:00 • 24 Active Monitoring Stations</p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="data-handler.js"></script>
+  <script src="location-dropdown.js"></script>
+  <script src="pollutants-app.js"></script>
+</body>
+</html>
